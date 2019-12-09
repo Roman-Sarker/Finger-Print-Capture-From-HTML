@@ -1,0 +1,237 @@
+<html>
+    <head>
+        <title>Scan Finger Data</title>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    </head>
+    <body>
+        
+        <div class="modal-body">
+                        <div class="container-fluid">
+                            <div class="row">
+                                <div class="col-md-8">
+                                    <div class="row"> 
+                                        <Button id="LeftThumb" onclick="beginOperation('LThumb','Left Thumb','enroll', 'ansisdk', false)"   class="btn mandatoryBtn" ><b>LEFT THUMB</b></Button>&nbsp;&nbsp;&nbsp;&nbsp;
+                                        <Button id="LeftIndex" onclick="beginOperation('LIndex','Left Index','enroll', 'ansisdk', false)"   class="btn mandatoryBtn" ><b>LEFT INDEX</b></Button>  
+                                    </div>
+                                    <br>
+
+                                    <div class="row"> 
+                                        <a id="LeftMiddle" onclick="beginOperation('LMiddle','Left Middle','enroll', 'ansisdk', false)" role="button" class="btn btn-warning popover-test" title="LEFT THUMB">LEFT MIDDLE</a> &nbsp;&nbsp;&nbsp;&nbsp;
+                                        <a id="LeftRing" onclick="beginOperation('LRing','Left Ring','enroll', 'ansisdk', false)" role="button" class="btn btn-warning popover-test" title="LEFT RING">LEFT RING</a> &nbsp;&nbsp;&nbsp;&nbsp;
+                                        <a id="LeftLittle" onclick="beginOperation('LLittle','Left Little','enroll', 'ansisdk', false)" role="button" class="btn btn-warning popover-test" title="RIGHT THUMB">LEFT LITTLE</a> 
+                                    </div>
+                                       
+                                    <br>
+
+                                    <div class="row"> 
+                                        <Button id="RightThumb" onclick="beginOperation('RThumb','Right Thumb','enroll', 'ansisdk', false)"  class="btn mandatoryBtn" ><b>RIGHT THUMB</b></Button> &nbsp;&nbsp;&nbsp;&nbsp;
+                                        <Button id="RightIndex" onclick="beginOperation('RIndex','Right Index','enroll', 'ansisdk', false)"  class="btn mandatoryBtn" ><b>RIGHT INDEX</b></Button> 
+                                    </div>
+
+                                    <br>
+
+                                    <div class="row"> 
+                                        <a id="RightMiddle" onclick="beginOperation('RMiddle','Right Middle','enroll', 'ansisdk', false)" role="button" class="btn btn-warning popover-test" title="RIGHT THUMB">RIGHT MIDDLE</a> &nbsp;&nbsp;&nbsp;&nbsp;
+                                        <a id="RightRing" onclick="beginOperation('RRing','Right Ring','enroll', 'ansisdk', false)" role="button" class="btn btn-warning popover-test" title="RIGHT RING">RIGHT INDEX</a> &nbsp;&nbsp;&nbsp;&nbsp;
+                                        <a id="RightLittle" onclick="beginOperation('RLittle','Right Little','enroll', 'ansisdk', false)" role="button" class="btn btn-warning popover-test" title="RIGHT THUMB">RIGHT LITTLE</a> 
+                                    </div>
+
+                                    <div class="row">
+                                        <div class="col-md-12"> 
+                                            <p id="status_alert" style="visibility: hidden;"  class="success_alert"> </p>
+                                            <a id="resultLink" href="http://www.futronic-tech.com" rel="external" media="application/octet-stream">
+                                                 
+                                            </a>
+                                        </div>  
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <canvas id="fingerframe" height="300" width="240" style="background-size:cover;"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+        
+        
+        
+        
+        
+    <!--Java Script code here.-->
+        <script>
+            
+            // Begin Operation Method
+            function beginOperation(nameOfDOM, msgString, opName, libName, sendSampleNum) {
+                inputDOM = nameOfDOM; // Finger Name
+                domMsgString = msgString;
+
+                var json = JSON.stringify({operation: opName, username: "", usedlib: libName, isoconv: "1", samplenum: "1"}); //isoconv: "1" = iso And "0" = ANSI
+                changeClassOfDomElement("status_alert", "success_alert");
+
+                var req = new XMLHttpRequest();
+                req.open("POST", fpHTTSrvOpEP);
+                req.setRequestHeader('Content-type', 'application/json; charset=utf-8');
+
+                req.onload = function () {
+                    if (req.status == 200) {
+                        setAskTest("Operation begin");
+                        parseOperationDsc(JSON.parse(req.response));
+                    } else
+                        fixError(req.statusText, "Server response");
+                };
+                req.onerror = function () {
+                    changeClassOfDomElement("status_alert", "danger_alert");
+                    makeStatusMSgVisible("status_alert", "Yu have to install futronic sdk");
+                };
+                req.send(json);
+            }
+    
+        //*
+            function parseOperationDsc(opDsc) {
+                var res = true;
+
+                if (opDsc.state == 'done') {
+                    enableControlsForOp(false);
+
+                    if (opDsc.status == 'success') {
+                        setOperationResult(opDsc.message);
+                        linkOperationTemplate(opDsc.id, opDsc.operation)
+                    }
+
+                    if (opDsc.status == 'fail') {
+                        fixError("", opDsc.errorstr)
+                        res = false;
+
+                        if (parseInt(opDsc.errornum) != -1) {
+                            deleteOperation(opDsc.id);
+                        }
+                    }
+                } else if (opDsc.state == 'init') {
+                    lastInitOp = opDsc.id ;
+                    try{
+                        deviceSN = opDsc.sn;
+                        document.getElementById('serial').value=deviceSN;
+                    }catch(e){
+                        document.getElementById('serial').value="";
+                    }
+                    setTimeout(getOperationState, 1000, opDsc.id);
+                    setTimeout(getOperationImg, 1000, opDsc.id, parseInt(opDsc.devwidth), parseInt(opDsc.devheight));
+                } else if (opDsc.state == 'inprogress')
+                {
+                    if (opDsc.fingercmd == 'puton') {
+                        setAskTest("Put finger on scanner");
+                    }
+
+                    if (opDsc.fingercmd == 'takeoff') {
+                        setAskTest("Take off finger from scanner");
+                    }
+
+                    setTimeout(getOperationState, 1000, opDsc.id);
+                    setTimeout(getOperationImg, 1000, opDsc.id, parseInt(opDsc.devwidth), parseInt(opDsc.devheight));
+                }
+
+                return res;
+            }
+            //*
+            function linkOperationTemplate(opId, operationName) {
+                var target = "/template";
+                var url = fpHTTSrvOpEP + '/' + opId + target;
+                getOperationTemplate(url);
+
+             /* var saveAs = "template.bin";
+                var resultText = "Result template";
+                resultLink.href = url;
+
+                resultLink.download = saveAs;
+                resultLink.innerHTML = resultText;
+                resultLink.click();  */
+            }
+    ///*** Take finger template
+        function getOperationTemplate(urlOfTemplate) {
+            try {
+                var url = urlOfTemplate;
+                var req = new XMLHttpRequest();
+                req.open('GET', url);
+                req.responseType = "arraybuffer";
+
+                req.onload = function () {
+                    if (req.status == 200) {
+                        //--
+                        var byteArray = new Uint8Array(req.response); 
+                        //var fingerQuality = byteArray[28]; 
+                        if(byteArray[26]<60){
+                            alert(inputDOM+" image quality is poor. Again capture this finger.");
+                        }else{
+                            var b64Encoded = arrayBufferToBase64(byteArray);
+                            //document.getElementById(inputDOM).value = b64Encoded;
+                            changeClassOfDomElement("status_alert", "success_alert");
+                            makeStatusMSgVisible("status_alert", domMsgString + " is successfully captured. Standard "+byteArray[26]);
+                        }
+
+                    } else {
+                        changeClassOfDomElement("status_alert", "danger_alert");
+                        makeStatusMSgVisible("status_alert", "fingerprint template is not got by the system");
+                    }
+                };
+                req.onerror = function () {
+                    changeClassOfDomElement("status_alert", "danger_alert");
+                    makeStatusMSgVisible("status_alert", "fingerprint template is not got by the system");
+                };
+
+                req.send();
+            } catch (e) {
+                alert(e.message);
+            }
+        }
+    
+         //* Additional function
+         
+         function changeClassOfDomElement(element, addClass, removeClass) {
+            document.getElementById(element).classList.remove(addClass);
+            document.getElementById(element).classList.remove(removeClass);
+            document.getElementById(element).classList.add(addClass);
+        }
+        //*
+        function makeStatusMSgVisible(dom, statusMsg) {
+            var x = document.getElementById(dom);
+            x.innerHTML = statusMsg;
+            x.style.visibility = 'visible';
+        }
+        //*
+        function setOperationResult(textMes) {
+            textResult.style = "color:blue"
+            textResult.innerHTML = textMes;
+        }
+        //* unkown use
+        function enableControlsForOp(opBegin) {
+        }
+        //*
+        function fixError(statusText, errorText) {
+            textResult.style = "color:blue";
+            changeClassOfDomElement("status_alert", "danger_alert");
+
+            if (errorText != "") {
+                if (statusText != "") {
+                    textResult.innerHTML = errorText + "(" + statusText + ")";
+                } else {
+                    textResult.innerHTML = errorText;
+                }
+            } else {
+                textResult.innerHTML = statusText
+            }
+        }
+        //*
+        function deleteOperation(opId) {
+            var url = fpHTTSrvOpEP + '/' + opId;
+            deleteVerb(url);
+        }
+        //*
+        function setAskTest(textMes) {
+            textResult.style = "color:blue"
+            textResult.innerHTML = textMes;
+        }
+        
+        </script>
+    </body>
+    
+</html>
